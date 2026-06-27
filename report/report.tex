@@ -1,0 +1,418 @@
+% Setup - do not change
+\documentclass[11pt]{article}
+\usepackage[top=0.9in, left=0.9in, bottom=0.9in, right=0.9in]{geometry} 
+\usepackage{parskip}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amsthm,amssymb,graphicx,pdfpages,lipsum,hyperref}
+\usepackage[none]{hyphenat}
+\usepackage{csquotes}
+\usepackage{float}
+
+\setlength\parindent{0pt}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% add other packages here if required
+\usepackage[backend=biber, sorting=none]{biblatex}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{multicol}
+\usepackage{afterpage}
+\usepackage{subcaption}
+\usepackage[font=small,labelfont=bf,tableposition=top]{caption}
+
+\addbibresource{references.bib}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% the '%' symbol denotes comments
+
+\title{\textbf{Tipping analysis of New York Yellow Trip and High Volumn For-Hire Vehicle Trip} }
+\author{
+Insert Student Yaojin Wu \\
+Student ID: 1305882\\
+\href{https://github.com/MAST30034-AppliedDataScience/project-1-individual-WYJ-unimelb.git}{Github repo with commit}
+}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+The tipping culture is one that is very prevalent in the United State and is found throughout the country. People will tip the service provider a percentage 
+of the price of the goods or services as a recognition of the service. And for taxis as a service industry always get some tip from the customers. People 
+typically give driver an extra 10 to 20 percentage on the standard fare. The Taxi and Limousine Commission publishes monthly data relating to trips their 
+licensed vehicles undertake, include yellow and green taxis and some for-hire vehicles as well as high volume for-hire vehicle service like uber. These 
+taxis have tens of thousands of entries each month. In these data found that some people tip zero, while others have tipped up to 40 percentage of the fare. 
+
+The purpose of this report is to analyze tipping amounts and passengers' willingness to tip using this data combined with external datasets, enables the drivers to get more tips. 
+Whereas gasoline is a necessary fuel for vehicle
+ travel, the price change of the gasoline may lead to increase in taxi fare, which would lead to an increase in tip in the same proportion. In addition 
+ change in weather may also affect taxi tipping. Thus, this report looks at the change in tipping under the influence of different weather or gasoline price. 
+ And use different model to see the main reason that affect tipping and fit a revenue curve for tipping 
+
+\subsection{Dataset} 
+
+The main dataset chosen for this report is the \textbf{TLC Taxi Trip Record Data} published by the NYC Taxi \& Limousine Commission. In this data the trip 
+(pick\_up time, drop\_off time, fare\_amount, tip\_amount, etc.)for each taxi order is clearly recorded from all trips completed in yellow and high volume for-hire 
+vehicle taxis in NYC\href{https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page}{[1]}. In order to keep the report current and to show all the different weather 
+conditions, I randomly selected 6 months out of 4 seasons to ensure that all weather was included. Therefore, the final data used to model and analysis is the latest 
+yellow taxi and high volume for-hire vehicle trip date for the other months in 2023 excluding February, May, August and November.
+In addition, I also used some external datasets, including the \textbf{gasoline price for New York City} published by the official website of new york state
+\href{https://data.ny.gov/zh/Energy-Environment/Gasoline-Prices/wuxr-ni2i}{[2]} and the \textbf{2023 climate change data} collected by New York State
+\href{https://meteostat.net/en/station/KNYC0?t=2023-01-01/2023-12-31}{[3]}. The gasoline price dataset 
+details the average weekly gasoline price for both New York City and New York State start from 2017. On the other hand, in the climate change dataset, the daily maximum temperature, 
+minimum temperature, average temperature, wind direction, wind speed, and precipitation are recorded for New York City. From these characteristics we know general 
+idea of the weather conditions on a daily basis. These datasets are used because we hypothesis that taxi tipping may be correlated with taxi type, gasoline price and 
+weather. The basic summary of the dataset is as follows
+
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{l r r}
+    \hline
+    \textbf{Datasets} & \textbf{Instances} & \textbf{No. features} \\
+    \hline
+    TLC Yellow Taxi Trip Record Data & 25,718,698 & 22 \\
+    \hline
+    TLC High Volume For-Hire Vehicle Trip Record Data & 157,089,973 & 27 \\
+    \hline
+    2023 Climate Change Data & 365 & 11 \\
+    \hline
+    2023 Gasoline Price Data & 397 & 10 \\
+    \hline
+    \end{tabular}
+    \caption{Datasets features}
+    \label{tab:datasets_features}
+    \end{table}
+
+
+\section{Preprocessing}
+
+The three data will be preprocessed to ensure that the feature in three data are useful for analysis. The following section will detail the inappropriateness
+ found in each dataset and how we processed them
+
+\subsection{Data Wrangling and Feature Selection}
+\subsubsection{TLC Trip Record Data}
+
+Due to the large volume of data(totalling 182,808,671 rows), I identified several issues such as input errors or data that did not meet the research requirements. To address these problems, 
+I implemented the following measures.
+
+\begin{itemize}
+    \item There were some data in the dataset with \textbf{negative fares and tips and other fees-related column}, which we removed as invalid data. 
+    \item For the data where the \textbf{fares were too large or too small}, we identified these data as outliers and not suitable for participation in the later analysis. We find the first and third 
+    quartiles of the fares and filter out anything greater or less than 1.5 \*IQR.
+    \item For data with \textbf{negative trip distance} we deemed these as invalid and removed them. Additionally, we excluded trips with a distance of 0.5 miles or less, as this distance is typically 
+    walkable for the average person. We categorized such short trips as special cases and excluded them from further analysis.
+    \item For data with \textbf{negative travel times}, where drop-off times earlier than pick-up times, we treated these data as invalid and removed them. Meanwhile, for the data with too short or too 
+    long travelling time, we calculate the first and third quantile of time spend to find out the outlier in the data and remove these data.
+    \item Remove data with \textbf{zero or negative passengers} as invalid data.
+    \item Since the external data I was looking for was by day or by week, this led to only the date in pickup datetime is useful for the following analysis, and the time was not useful, so I chose to 
+    present the date as a new feature and remove the original feature.
+\end{itemize}
+
+As a result of the above data culling, we removed a total of 22,599,650 records from the original TLC dataset, leaving 160,209,021 for subsequent analysis and modeling. I retained only the two features: 
+tip amount and pickup date, as most other features such as payment type, tolls amount, etc., were not relevant to the focus of this report, which is to analyze the impact of tipping. However, it was still 
+necessary to address anomalies in these features during preprocessing to ensure data quality.
+
+\subsubsection{2023 climate change data}
+
+The 2023 climate change dataset contains 11 features, but some of these are not useful for the subsequent analysis, such as wind direction. One feature of interest, snow depth, is relevant since heavy snow 
+can impact taxi movement and potentially increase tips. However, as the snow depth in New York City has been 0 for the past 12 months, this feature is not applicable and was removed from the analysis. After 
+excluding these two features, the final features selected through a simple filter included:
+
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{l r}
+    \hline
+    \textbf{Feature} & \textbf{Description} \\
+    \hline
+    date & Date \\
+    \hline
+    tavg & Average temperature \\
+    \hline
+    prcp & Total precipitation \\
+    \hline
+    wspd & Wind speed \\
+    \hline
+    \end{tabular}
+    \caption{Climate Change Feature}
+    \label{tab:Climate Change Feature}
+    \end{table}
+
+To incorporate the data into the analyses, we concatenated the climate change dataset and the TLC dataset through the same date. This allows us to connect the TLC data to the daily weather conditions and 
+exclude all the times that we did not use.
+
+\subsubsection{Gasoline price for New York City}
+
+For the Gasoline Price dataset for New York City, which provides weekly data for the entire United States, we selected only New York State and the date as the two relevant features. since the data in this 
+dataset is counted on a weekly basis, we can't see the data for each day in this dataset. So I added the other days and averaged all of the data for the week to make it equal to the average for the week. 
+After filling in the missing data, we linked the Gasoline Price dataset with the TLC taxi dataset using the date feature, allowing us to filter the data specifically for the year 2023.
+
+\subsection{Feature Engineering and Data Aggregation}
+
+In this report, we need to discuss the impact of taxi type on tipping. Therefore, I selected two types of taxis from the TLC trip record data: yellow taxis and high-volume for-hire vehicles (FHVHV). 
+Since non-numerical data cannot be analyzed directly in post-analysis, I created two new features, yellow and fhvhv. If the taxi is yellow, the yellow feature is set to 1, otherwise, it will be 0. 
+Similarly, if the taxi is a high-volume for-hire vehicle, the fhvhv feature is set to 1. This conversion allows non-numerical data to be transformed into numerical data for analysis and 
+modeling. After converting taxi types to numerical values, we grouped the data by pickup date and taxi type to calculate the total number of tips and the amount of data for each taxi type 
+on a daily basis. A new feature, average tip, was created by dividing the total tip amount by the data count. This feature represents the average tip each taxi type receives per trip on 
+a daily basis.
+
+
+\section{Analysis and Geospatial Visualisation}
+
+In this section, we will analyze the relationship between the tip and taxi type in the TLC dataset. Additionally, we will analyze the relationship between tips and the weather as well as 
+gasoline price datasets.
+\subsection{Effect of taxi type}
+
+Based on my analysis, the amount of taxi tipping is inextricably linked to the type of taxi. From Figure 1 we can clearly see that for different taxi type, the amount of tip varies. From
+the boxplot of the two types of taxis, we can see that the amount of tip for a yellow taxi is mostly around 3, while the tip for a high volume for hire vehicle is mostly around 0.75 to 0.8.
+
+\begin{figure}[h]
+    % change the scale multiplier to make the figures smaller or larger
+    \includegraphics[width=0.7\textwidth]{../../project-1-individual-WYJ-unimelb/plots/taxi type.png}
+    % this ensures your figures are centered where possible
+    \centering
+    \caption{boxplot for tip from different taxi} % refer to this image as (Figure 1)
+\end{figure}
+
+\subsection{Effect of weather}
+In this section, we will analyze the impact of weather changes on tipping and passengers' willingness to tip, focusing on factors such as average temperature, precipitation, and wind speed.
+\subsubsection{Average temperature}
+
+Figure 2 illustrates the changes in average tip across different temperatures. From the graph, it is evident that the average tip does not increase with rising temperatures, suggesting that 
+there may not be a significant correlation between tips and temperature. However, the graph also shows a higher volume of data when the temperature is between 5 to 10 degrees or above 20 degrees, 
+indicating that people may be more inclined to tip at these temperature ranges.
+
+\begin{figure}[H]
+    \centering 
+    \includegraphics[width=0.5\textwidth]{../../project-1-individual-WYJ-unimelb/plots/weather temperature.png}
+    \caption{Average temperature}  
+\end{figure}
+
+\subsubsection{Precipitation}
+Figure 3 shows the correlation between precipitation and tipping, but from the Figure 3 it can be seen that no matter how the precipitation changes, the average tip always remains the same whether 
+it is Yellow or high volume for hire vehicle. And at the same time from the Figure 3 it can be seen that most data are at the precipitation less than 20 which also represents that people are more 
+inclined to tip when the precipitation less than 20.
+
+\begin{figure}[h]
+    \centering 
+    \includegraphics[width=0.4\textwidth]{../../project-1-individual-WYJ-unimelb/plots/weather precipitation.png}
+    \caption{Precipitation}  
+\end{figure}
+
+\subsubsection{Wind speed}
+In Figure 4 we can get same result of tip from wind speed. The wind speed have a minimal effect on tipping, the data for tipping is very high when the wind speed is between 5 t o15, which means
+ that people are more willing to tip in this range of wind speed. 
+
+\begin{figure}[h]
+    \centering 
+    \includegraphics[width=0.4\textwidth]{../../project-1-individual-WYJ-unimelb/plots/weather wind speed.png}
+    \caption{Wind speed}  
+\end{figure}
+
+In conclusion, we analyzed the effects of average temperature, wind speed, and precipitation on tipping and found that while weather does not significantly influence the amount of tipping, it does 
+affect people willingness to tip.
+\subsection{Effect of gasoline price}
+As shown in Figure 5, after excluding outliers, the change in the maximum average tip for each gasoline price reveals that as fuel prices increase, the average tip rises from 3 to 3.2. Although this 
+increase is small, it indicates a correlation between gasoline prices and tipping.
+
+\begin{figure}[h]
+    \centering 
+    \includegraphics[width=0.4\textwidth]{../../project-1-individual-WYJ-unimelb/plots/gasoline price.png}
+    \caption{gasoline price}  
+\end{figure}
+
+\subsection{Heatmap between all features}
+Figure 6 provides a more intuitive view of the linear correlations between the features using a heatmap. From the figure, it's clear that the correlation coefficient between the average tip and yellow 
+taxis is as high as 0.97, indicating a strong positive correlation between these two features. Conversely, the correlation coefficient between the average tip and Fhvhv taxis is -0.97, indicating a 
+strong negative correlation. The correlation coefficients between average tip and other features are quite low, suggesting minimal correlations. This heatmap reinforces the previous conclusion that 
+average tip has a very low correlation with weather and gasoline prices, as reflected by the small correlation coefficients.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{../../project-1-individual-WYJ-unimelb/plots/heatmap.png}
+    \caption{heatmap}
+\end{figure}
+
+
+
+\section{Modelling}
+We used three regression models, linear regression (LM),generalised linear model (GLM) and Lasson regression model. To evaluate the performance of these three models in predicting the amount of taxi tips.
+\subsection{Linear Regression model}
+In the linear regression model, considering that there is no correlation between taxi type, weather, and gasoline price, and assuming that the three weather factors are independent, the model is formulated as follows:
+\begin{equation}
+    Y = X\beta + \epsilon
+\end{equation}
+
+From Table 3, we can see the R-squared value of the model is 0.942, indicate that the model explains about 94.2\% of the variation in tip amounts. Additionally, the probability of the 
+F-statistic for this linear regression is 3.30e-304, which is less than 0.05, signifying that there is at least one independent variable in the model that has a significant effect on the 
+average tip. This is evident from the p-values of the two features, yellow and fhvhv, both of which have p-values of 0, indicating a significant impact on the average tip.The coefficients 
+of these two features further clarify their relationship with the average tip: for every yellow of 1, the average tip increases by 1.5355, while when fhvhv is 1, the average tip decreases 
+by 0.6977. In addition to taxi type, gasoline price also has a p-value of 0.042, which is less than 0.05, meaning that gasoline price significantly affects tips. For every 1-unit increase 
+in gasoline price, the average tip rises by 0.19 units. However, the p-values of the weather-related features are greater than 0.05, indicating that weather do not have a significant 
+relationship with the average tip.
+
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{l r} 
+    \hline
+    \textbf{Statistic} & \textbf{Value} \\
+    \hline
+    R-squared: & 0.942 \\
+    Adj. R-squared: & 0.941 \\
+    F-statistic: & 1608.0 \\
+    Prob (F-statistic): & 3.30e-304 \\
+    \hline
+    \end{tabular}
+    \vspace{0.5cm}  
+    \begin{tabular}{l r r r r}  
+    \hline
+    \textbf{Feature} & \textbf{coef} & \textbf{std err} & \textbf{t} & \textbf{P>|t|} \\
+    \hline
+    Intercept & 0.8378 & 0.223 & 3.764 & 0.000 \\
+    yellow & 1.5355 & 0.112 & 13.679 & 0.000 \\
+    fhvhv & -0.6977 & 0.112 & -6.243 & 0.000 \\
+    average\_temperature & -0.0020 & 0.002 & -0.863 & 0.389 \\
+    Precipitation & -0.0006 & 0.001 & -0.522 & 0.602 \\
+    wind\_speed & 0.0009 & 0.005 & 0.190 & 0.849 \\
+    Average\_gasoline\_price & 0.1956 & 0.096 & 2.041 & 0.042 \\
+    \hline
+    \end{tabular}
+    \caption{Linear Regression Results}
+    \label{tab:linear_regression_results}
+    \end{table}
+
+\subsection{Generalised linear model}
+
+The GLM model is a type of linear regression model, but it allows the distribution of features is not normality. Nonetheless, the formula of the GLM model remains 
+consistent with that of the linear regression model. For the GLM, I selected Gaussian distribution to model the features and obtained the following results in Table 4:
+
+
+In Table 4, the scale of model is 0.078042, which represents the estimation of the error term. This very low value indicates that the model's fitting error is minimal. 
+Additionally, the Pseudo R-squared, similar to variance, has a value of 1, meaning the model fits extremely well, explaining all the variation in the tip amount. By 
+examining the p-values of each feature, we can see that yellow, fhvhv, and average gasoline price have p-values less than 0.05, indicating a significant correlation 
+between these three features and the average tip. Furthermore, the coefficient shows that when all features are 0, the initial average tip will be 0.8378.
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{l r} 
+    \hline
+    \textbf{Statistic} & \textbf{Value} \\
+    \hline
+    Pseudo R-squ. (CS): & 1 \\
+    Deviance: & 38.787 \\
+    Scale: & 0.078042 \\
+    \hline
+    \end{tabular}
+    \vspace{0.5cm}  
+    \begin{tabular}{l r r r r }
+    \hline
+    \textbf{Feature} & \textbf{coef} & \textbf{std err} & \textbf{z}  & \textbf{P>|z|}\\
+    \hline
+    Intercept             & 0.8378 & 0.223 & 3.764 & 0.000  \\
+    yellow                & 1.5355 & 0.112 & 13.679 & 0.000 \\
+    fhvhv                 & -0.6977 & 0.112 & -6.243 & 0.000  \\
+    average\_temperature  & -0.0020 & 0.002 & -0.863 & 0.388  \\
+    Precipitation         & -0.0006 & 0.001 & -0.522 & 0.602  \\
+    wind\_speed           & 0.0009 & 0.005 & 0.190 & 0.849 \\
+    Average\_gasoline\_price & 0.1956 & 0.096 & 2.041 & 0.041  \\
+    \hline
+    \end{tabular}
+    \caption{Generalized Linear Model Regression Results}
+    \label{tab:Generalized Linear Model Regression Results}
+    \end{table}
+
+\subsection{Lasson model}
+The Lasso model is a regression model that effectively handles high-dimensional datasets and provides good accuracy for problems with high number of variables. 
+The model's output reduces the coefficients of features that do not have a significant relationship to the target variable to 0. The function that the Lasso model 
+follows is:
+
+\begin{equation}
+    \min_{\beta} \left( \sum_{i=1}^{m} \left( y_i - \hat{y}_i \right)^2 + \lambda \sum_{j=1}^{n} |\beta_j| \right)
+\end{equation}
+
+After fitting the Lasso model, Table 5 shows that the average tip is significantly related only to yellow taxis, as all other features have coefficients of 0. This occurs because 
+the Lasso model reduces the coefficients of features that do not have a significant relationship with the dependent variable to zero.
+
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{l r r r r }
+    \hline
+    \textbf{Feature} & \textbf{coef} \\
+    \hline
+    Intercept             & 1.0317244897959181   \\
+    yellow                & 1.83395768  \\
+    fhvhv                 & 0   \\
+    average\_temperature  & -0 \\
+    Precipitation         & -0 \\
+    wind\_speed           & 0 \\
+    Average\_gasoline\_price & 0   \\
+    \hline
+    \end{tabular}
+    \caption{Lasson Regression Results}
+    \label{tab:Lasson Regression Results}
+\end{table}
+
+\section{Discussion}
+The Akaike Information Criterion (AIC) and Bayesian Information Criterion (BIC) of the three models are compared to determine which model is best fitted, with smaller AIC and BIC values 
+indicating a better fit. Table 6 shows that the Lasso model has the highest AIC and BIC among the three models, suggesting that it does not fit well. Additionally, the Linear Regression 
+model has the same AIC as the Generalized Linear Model (GLM), but the BIC of the GLM is significantly lower than that of the Linear Regression, indicating that the GLM provides a better 
+fit.
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{l r r  }
+    \hline
+    \textbf{Model} & \textbf{AIC} & \textbf{BIC} \\
+    \hline
+    Linear Regression   & 150.5         & 170.8  \\
+    Generalized Linear Model Regression &    150.5098806747236       & -3052.846488275338  \\
+    Lasson         &   363.7735724636825    &  389.09711348428095   \\
+    \hline
+    \end{tabular}
+    \caption{AIC and BIC of Models}
+    \label{tab:AIC and BIC of Models}
+\end{table}
+
+The features that affect amount of tip in the GLM are taxi type and gasoline price, both of two features are shown to have a significant relationship with the average tip in the model.
+
+
+\section{Conclusion}
+In conclusion, by analyzing the TLC trip record dataset along with two external datasets, weather changes and gasoline price changes, it is evident that taxi tipping is primarily influenced 
+by taxi type and gasoline price. If drivers want to increase their tips, the most effective approach is to drive a yellow taxi. In reality, weather do not have a significant impact on 
+tipping behavior, because the long-standing consumer culture in the United States has established a certain perception of spending. This perception is not easily influenced by external 
+factors like weather.
+
+
+\clearpage
+\begin{thebibliography}{9}
+
+    \bibitem{tlctriprecorddata}
+    New York City Taxi and Limousine Commission. (n.d.). 
+    \textit{TLC trip record data}. NYC.gov. Retrieved August 24, 2024, 
+    from \url{https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page}
+    
+    \bibitem{gasolineprices}
+    New York State. (n.d.). 
+    \textit{Gasoline prices}. data.ny.gov. Retrieved August 24, 2024, 
+    from \url{https://data.ny.gov/zh/Energy-Environment/Gasoline-Prices/wuxr-ni2i}
+    
+    \bibitem{meteostat}
+    Meteostat. (n.d.). 
+    \textit{Weather data for KNYC0 station (Jan 1, 2023 - Dec 31, 2023)}. meteostat.net. 
+    Retrieved August 24, 2024, from \url{https://meteostat.net/en/station/KNYC0?t=2023-01-01/2023-12-31}
+    
+    \bibitem{noaa}
+    National Centers for Environmental Information. (n.d.). 
+    \textit{NOAA Climate Data Online Search}. NOAA. Retrieved August 24, 2024, 
+    from \url{https://www.ncdc.noaa.gov/cdo-web/search;jsessionid=2AE5CD46834B29A292FEBE647C995D2F}
+
+    \bibitem{nyctaxi}
+    NYC Data Science Academy. (n.d.). 
+    \textit{Data analysis on NYC taxi riders' tipping behavior}. 
+    NYC Data Science Academy. Retrieved August 24, 2024, from \url{https://nycdatascience.com/blog/student-works/data-analysis-on-nyc-taxi-riders-tipping-behavior/}
+
+
+
+\end{thebibliography}
+    
+
+
+\end{document}
